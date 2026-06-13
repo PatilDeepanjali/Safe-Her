@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="100dp"
+    android:height="100dp"
+    android:viewportWidth="100"
+    android:viewportHeight="100">
+
+    <!-- Shield outline -->
+    <path
+        android:fillColor="@android:color/transparent"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="3"
+        android:pathData="M50,10 L80,22 L80,50 C80,68 65,80 50,88 C35,80 20,68 20,50 L20,22 Z" />
+
+    <!-- Person head (circle) -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M50,32 m-8,0 a8,8 0 1,0 16,0 a8,8 0 1,0 -16,0" />
+
+    <!-- Person body -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M34,62 C34,52 40,46 50,46 C60,46 66,52 66,62 Z" />
+
+</vector>
