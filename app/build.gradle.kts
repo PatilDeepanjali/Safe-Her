@@ -2,6 +2,7 @@ plugins {
     alias(libs.plugins.android.application)
     id("com.google.gms.google-services")
 }
+val mapsApiKey = project.findProperty("MAPS_API_KEY") as String? ?: ""
 
 android {
     namespace = "com.example.women_safety_ml"
@@ -13,6 +14,8 @@ android {
         targetSdk = 36
         versionCode = 1
         versionName = "1.0"
+
+        manifestPlaceholders["MAPS_API_KEY"] = mapsApiKey
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -31,6 +34,8 @@ android {
         targetCompatibility = JavaVersion.VERSION_11
     }
 }
+
+
 
 dependencies {
 
