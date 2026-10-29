@@ -270,6 +270,56 @@ public class MapActivity extends BaseActivity implements OnMapReadyCallback {
         if (cardRoute2 != null) cardRoute2.setOnClickListener(v -> { if (seekRoutePriority != null) seekRoutePriority.setProgress(1); });
         if (cardRoute3 != null) cardRoute3.setOnClickListener(v -> { if (seekRoutePriority != null) seekRoutePriority.setProgress(2); });
 
+        // Swap endpoints & chips
+        View btnSwap = findViewById(R.id.btnSwapEndpoints);
+        if (btnSwap != null) {
+            btnSwap.setOnClickListener(v -> {
+                TextView tvDest = findViewById(R.id.tvDestination);
+                if (tvDest != null && tvCurrentAddress != null) {
+                    CharSequence tmp = tvDest.getText();
+                    tvDest.setText(tvCurrentAddress.getText());
+                    tvCurrentAddress.setText(tmp);
+                    Toast.makeText(this, "Endpoints swapped", Toast.LENGTH_SHORT).show();
+                }
+            });
+        }
+        View chipHome = findViewById(R.id.chipHome);
+        if (chipHome != null) {
+            chipHome.setOnClickListener(v -> {
+                TextView tvDest = findViewById(R.id.tvDestination);
+                if (tvDest != null) tvDest.setText("Greenwood Residency (Home)");
+                if (seekRoutePriority != null) seekRoutePriority.setProgress(0);
+            });
+        }
+        View chipWork = findViewById(R.id.chipWork);
+        if (chipWork != null) {
+            chipWork.setOnClickListener(v -> {
+                TextView tvDest = findViewById(R.id.tvDestination);
+                if (tvDest != null) tvDest.setText("Tech Park, Koramangala (Work)");
+                if (seekRoutePriority != null) seekRoutePriority.setProgress(1);
+            });
+        }
+        View chipCafe = findViewById(R.id.chipCafe);
+        if (chipCafe != null) {
+            chipCafe.setOnClickListener(v -> {
+                TextView tvDest = findViewById(R.id.tvDestination);
+                if (tvDest != null) tvDest.setText("Blue Tokai Cafe");
+            });
+        }
+        View btnRecenter = findViewById(R.id.btnRecenter);
+        if (btnRecenter != null) {
+            btnRecenter.setOnClickListener(v -> {
+                if (mMap != null && currentLat != 0) {
+                    mMap.animateCamera(CameraUpdateFactory.newLatLngZoom(new LatLng(currentLat, currentLng), 16));
+                }
+            });
+        }
+
+        View btnFakeCall = findViewById(R.id.btnFakeCall);
+        if (btnFakeCall != null) {
+            btnFakeCall.setOnClickListener(v -> showFakeCallDialog());
+        }
+
         // Deviation Simulation & Recovery Buttons
         if (btnTestDeviation != null) {
             btnTestDeviation.setOnClickListener(v -> simulate120mDeviation());
@@ -285,25 +335,39 @@ public class MapActivity extends BaseActivity implements OnMapReadyCallback {
         }
     }
 
+    private void showFakeCallDialog() {
+        new AlertDialog.Builder(this)
+                .setTitle("📞 Incoming Safe Call")
+                .setMessage("Dad (Guardian) is calling...\nSafeHer Verified Safe Call Shield")
+                .setPositiveButton("Accept Call", (dialog, which) -> {
+                    Toast.makeText(this, "Connected: 'Hey, where are you? I am waiting near the main gate.'", Toast.LENGTH_LONG).show();
+                })
+                .setNegativeButton("Decline", null)
+                .show();
+    }
+
     private void updateRoutePriorityUI(int priority) {
         currentPriority = priority;
         if (tvSliderScoreBadge != null) {
             if (priority == 0) {
-                tvSliderScoreBadge.setText("Safest (9.2 / 10)");
-                tvSliderScoreBadge.setTextColor(0xFF2E7D32);
+                tvSliderScoreBadge.setText("Safest");
+                tvSliderScoreBadge.setBackgroundResource(R.drawable.badge_safety_teal);
+                tvSliderScoreBadge.setTextColor(0xFFFFFFFF);
             } else if (priority == 1) {
-                tvSliderScoreBadge.setText("Balanced (7.8 / 10)");
-                tvSliderScoreBadge.setTextColor(0xFFF57C00);
+                tvSliderScoreBadge.setText("Balanced");
+                tvSliderScoreBadge.setBackgroundResource(R.drawable.badge_safety_sand);
+                tvSliderScoreBadge.setTextColor(0xFF7E4200);
             } else {
-                tvSliderScoreBadge.setText("Fastest (5.4 / 10 Caution)");
-                tvSliderScoreBadge.setTextColor(0xFFE53935);
+                tvSliderScoreBadge.setText("Fastest");
+                tvSliderScoreBadge.setBackgroundResource(R.drawable.badge_safety_red);
+                tvSliderScoreBadge.setTextColor(0xFFBA1A1A);
             }
         }
 
         if (cardRoute1 != null && cardRoute2 != null && cardRoute3 != null) {
-            cardRoute1.setBackgroundResource(priority == 0 ? R.drawable.emergency_border : R.drawable.card_rounded);
-            cardRoute2.setBackgroundResource(priority == 1 ? R.drawable.emergency_border : R.drawable.card_rounded);
-            cardRoute3.setBackgroundResource(priority == 2 ? R.drawable.emergency_border : R.drawable.card_rounded);
+            cardRoute1.setBackgroundResource(priority == 0 ? R.drawable.card_route_active : R.drawable.card_route_inactive);
+            cardRoute2.setBackgroundResource(priority == 1 ? R.drawable.card_route_active : R.drawable.card_route_inactive);
+            cardRoute3.setBackgroundResource(priority == 2 ? R.drawable.card_route_active : R.drawable.card_route_inactive);
         }
 
         if (!routePolylines.isEmpty()) {
@@ -573,25 +637,14 @@ public class MapActivity extends BaseActivity implements OnMapReadyCallback {
 
     private void showRouteComparisonDialog(LatLng start, LatLng dest) {
         new AlertDialog.Builder(this)
-                .setTitle("🛡️ Safe Route Recommendation")
-                .setMessage("SafeHer synthesized municipal street lighting and incident reports:\n\n"
-                        + "🟢 1. Safest Corridor:\n"
-                        + "• Distance: 1.8 km (~24 min)\n"
-                        + "• Safety Score: 🛡️ 9.2 / 10\n"
-                        + "• Highlights: 100% Well-lit, City Police Help Post\n\n"
-                        + "🟠 2. Balanced Route:\n"
-                        + "• Distance: 1.4 km (~18 min)\n"
-                        + "• Safety Score: 7.8 / 10 (Moderate)\n"
-                        + "• Highlights: Active commercial avenue\n\n"
-                        + "🔴 3. Shortest Route:\n"
-                        + "• Distance: 1.1 km (~13 min)\n"
-                        + "• Safety Score: ⚠️ 5.4 / 10 (High Risk)\n"
-                        + "• Warning: Crosses dark alleyway hotspot")
-                .setPositiveButton("Follow Safest Route", (dialog, which) -> {
+                .setTitle("Safe Route Selected")
+                .setMessage("Safest Corridor (1.8 km • 24 min • 9.2 Safety)\n• 100% Well-lit streetlights\n• Police Post at 400m\n• 24/7 Verified Pharmacy")
+                .setPositiveButton("Start Navigation", (dialog, which) -> {
                     if (seekRoutePriority != null) seekRoutePriority.setProgress(0);
-                    Toast.makeText(this, "Safest Route Activated 🛡️ (Score: 9.2)", Toast.LENGTH_SHORT).show();
+                    if (btnSafeRoute != null) btnSafeRoute.setText("✓  Journey Active (Safe Corridor)");
+                    Toast.makeText(this, "Navigation Active • Safe Corridor", Toast.LENGTH_SHORT).show();
                 })
-                .setNeutralButton("External Google Maps", (dialog, which) -> {
+                .setNeutralButton("Google Maps", (dialog, which) -> {
                     String uri = "google.navigation:q=" + dest.latitude + "," + dest.longitude + "&mode=w";
                     startActivity(new Intent(Intent.ACTION_VIEW, android.net.Uri.parse(uri)));
                 })
