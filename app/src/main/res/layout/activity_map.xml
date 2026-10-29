@@ -157,20 +157,28 @@
                                 app:tint="#432587"
                                 android:layout_marginEnd="8dp" />
 
-                            <TextView
-                                android:id="@+id/tvDestination"
+                            <EditText
+                                android:id="@+id/etDestination"
                                 android:layout_width="0dp"
                                 android:layout_height="wrap_content"
                                 android:layout_weight="1"
                                 android:text="Greenwood Residency"
+                                android:hint="Where to? (Type place or tap map)"
                                 android:textColor="#1E1A22"
+                                android:textColorHint="#9E98A6"
                                 android:textSize="13sp"
                                 android:textStyle="bold"
+                                android:background="@null"
+                                android:imeOptions="actionSearch"
+                                android:inputType="textPostalAddress"
                                 android:singleLine="true" />
 
                             <ImageView
-                                android:layout_width="16dp"
-                                android:layout_height="16dp"
+                                android:id="@+id/btnSearchDestination"
+                                android:layout_width="28dp"
+                                android:layout_height="28dp"
+                                android:padding="6dp"
+                                android:background="?attr/selectableItemBackgroundBorderless"
                                 android:src="@android:drawable/ic_menu_search"
                                 app:tint="#432587" />
                         </LinearLayout>
@@ -406,6 +414,7 @@
                     android:orientation="vertical">
 
                     <TextView
+                        android:id="@+id/tvRoute1Details"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="24 min • 1.8 km"
@@ -414,6 +423,7 @@
                         android:textStyle="bold" />
 
                     <TextView
+                        android:id="@+id/tvRoute1Feature"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="💡 Well-lit corridors"
@@ -423,6 +433,7 @@
                 </LinearLayout>
 
                 <TextView
+                    android:id="@+id/tvRoute1Badge"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:background="@drawable/badge_safety_teal"
@@ -454,6 +465,7 @@
                     android:orientation="vertical">
 
                     <TextView
+                        android:id="@+id/tvRoute2Details"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="18 min • 1.4 km"
@@ -462,6 +474,7 @@
                         android:textStyle="bold" />
 
                     <TextView
+                        android:id="@+id/tvRoute2Feature"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="🏪 Active commercial"
@@ -471,6 +484,7 @@
                 </LinearLayout>
 
                 <TextView
+                    android:id="@+id/tvRoute2Badge"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:background="@drawable/badge_safety_sand"
@@ -502,6 +516,7 @@
                     android:orientation="vertical">
 
                     <TextView
+                        android:id="@+id/tvRoute3Details"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="13 min • 1.1 km"
@@ -510,6 +525,7 @@
                         android:textStyle="bold" />
 
                     <TextView
+                        android:id="@+id/tvRoute3Feature"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="⚠️ Dim lighting"
@@ -519,6 +535,7 @@
                 </LinearLayout>
 
                 <TextView
+                    android:id="@+id/tvRoute3Badge"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:background="@drawable/badge_safety_red"
