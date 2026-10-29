@@ -16,8 +16,21 @@ public class PredictionResponse {
     @SerializedName("error")
     private String error;
 
+    public PredictionResponse() {}
+
+    public PredictionResponse(int prediction, String status, double unsafe_probability) {
+        this.prediction = prediction;
+        this.status = status;
+        this.unsafe_probability = unsafe_probability;
+    }
+
     public int getPrediction()           { return prediction; }
     public String getStatus()            { return status; }
     public double getUnsafe_probability(){ return unsafe_probability; }
     public String getError()             { return error; }
+
+    public void setPrediction(int prediction) { this.prediction = prediction; }
+    public void setStatus(String status) { this.status = status; }
+    public void setUnsafe_probability(double unsafe_probability) { this.unsafe_probability = unsafe_probability; }
+    public void setError(String error) { this.error = error; }
 }

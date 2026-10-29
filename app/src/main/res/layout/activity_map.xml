@@ -180,37 +180,351 @@
                     android:textStyle="bold"/>
             </LinearLayout>
 
-            <!-- Safe Route + Share Location Buttons -->
+            <!-- ── ROUTE BALANCE PRIORITY (Objective 1) ── -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:background="@drawable/card_rounded"
+                android:orientation="vertical"
+                android:padding="14dp"
+                android:layout_marginBottom="12dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="Route Balance Priority"
+                        android:textColor="#1A1A2E"
+                        android:textSize="13sp"
+                        android:textStyle="bold"/>
+
+                    <TextView
+                        android:id="@+id/tvSliderScoreBadge"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:background="@drawable/safe_route_badge"
+                        android:paddingStart="8dp"
+                        android:paddingEnd="8dp"
+                        android:paddingTop="2dp"
+                        android:paddingBottom="2dp"
+                        android:text="Safest (9.2 / 10)"
+                        android:textColor="#2E7D32"
+                        android:textSize="11sp"
+                        android:textStyle="bold"/>
+                </LinearLayout>
+
+                <SeekBar
+                    android:id="@+id/seekRoutePriority"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:max="2"
+                    android:progress="0"
+                    android:thumbTint="#6A0DAD"
+                    android:progressTint="#9B2FC9"
+                    android:layout_marginTop="8dp"
+                    android:layout_marginBottom="4dp"/>
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal">
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="1. Safest"
+                        android:textColor="#2E7D32"
+                        android:textSize="11sp"
+                        android:textStyle="bold"/>
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:gravity="center"
+                        android:text="2. Balanced"
+                        android:textColor="#6A0DAD"
+                        android:textSize="11sp"/>
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:gravity="end"
+                        android:text="3. Fastest"
+                        android:textColor="#E53935"
+                        android:textSize="11sp"/>
+                </LinearLayout>
+            </LinearLayout>
+
+            <!-- ── ROUTE CARDS ── -->
+            <LinearLayout
+                android:id="@+id/cardRoute1"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:background="@drawable/emergency_border"
+                android:orientation="vertical"
+                android:padding="12dp"
+                android:layout_marginBottom="8dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="Route 1: Safest Corridor (24m • 1.8km)"
+                        android:textColor="#1A1A2E"
+                        android:textSize="13sp"
+                        android:textStyle="bold"/>
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:background="@drawable/safe_route_badge"
+                        android:paddingStart="8dp"
+                        android:paddingEnd="8dp"
+                        android:paddingTop="2dp"
+                        android:paddingBottom="2dp"
+                        android:text="9.2 Safe"
+                        android:textColor="#2E7D32"
+                        android:textSize="11sp"
+                        android:textStyle="bold"/>
+                </LinearLayout>
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="3dp"
+                    android:text="💡 100% Well-lit • Halasuru Police Post • Apollo 24/7"
+                    android:textColor="#2E7D32"
+                    android:textSize="11sp"/>
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/cardRoute2"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:background="@drawable/card_rounded"
+                android:orientation="vertical"
+                android:padding="12dp"
+                android:layout_marginBottom="8dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="Route 2: Balanced Route (18m • 1.4km)"
+                        android:textColor="#1A1A2E"
+                        android:textSize="13sp"
+                        android:textStyle="bold"/>
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:background="@drawable/priority_badge"
+                        android:paddingStart="8dp"
+                        android:paddingEnd="8dp"
+                        android:paddingTop="2dp"
+                        android:paddingBottom="2dp"
+                        android:text="7.8 Safe"
+                        android:textColor="#F57C00"
+                        android:textSize="11sp"
+                        android:textStyle="bold"/>
+                </LinearLayout>
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="3dp"
+                    android:text="🏪 Active commercial street • Moderate lighting"
+                    android:textColor="#666666"
+                    android:textSize="11sp"/>
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/cardRoute3"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:background="@drawable/card_rounded"
+                android:orientation="vertical"
+                android:padding="12dp"
+                android:layout_marginBottom="12dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="Route 3: Shortest Route (13m • 1.1km)"
+                        android:textColor="#1A1A2E"
+                        android:textSize="13sp"
+                        android:textStyle="bold"/>
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:background="#FFEBEE"
+                        android:paddingStart="8dp"
+                        android:paddingEnd="8dp"
+                        android:paddingTop="2dp"
+                        android:paddingBottom="2dp"
+                        android:text="5.4 Caution"
+                        android:textColor="#E53935"
+                        android:textSize="11sp"
+                        android:textStyle="bold"/>
+                </LinearLayout>
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="3dp"
+                    android:text="⚠️ Crosses unlit back-alley • Higher risk after 9 PM"
+                    android:textColor="#E53935"
+                    android:textSize="11sp"/>
+            </LinearLayout>
+
+            <!-- ── 120M DEVIATION ALERT BANNER (Objective 4) ── -->
+            <LinearLayout
+                android:id="@+id/cardDeviationAlert"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:background="@drawable/card_rounded"
+                android:backgroundTint="#FFEBEE"
+                android:orientation="vertical"
+                android:padding="14dp"
+                android:visibility="gone"
+                android:layout_marginBottom="12dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <ImageView
+                        android:layout_width="28dp"
+                        android:layout_height="28dp"
+                        android:src="@android:drawable/stat_notify_error"
+                        app:tint="#E53935"
+                        android:layout_marginEnd="10dp"/>
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Route Deviation Detected!"
+                            android:textColor="#B71C1C"
+                            android:textSize="14sp"
+                            android:textStyle="bold"/>
+
+                        <TextView
+                            android:id="@+id/tvDeviationSubtext"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="120m off safe route • Unverified corridor"
+                            android:textColor="#D32F2F"
+                            android:textSize="12sp"/>
+                    </LinearLayout>
+                </LinearLayout>
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:weightSum="2"
+                    android:layout_marginTop="10dp">
+
+                    <Button
+                        android:id="@+id/btnRerouteSafe"
+                        android:layout_width="0dp"
+                        android:layout_height="38dp"
+                        android:layout_weight="1"
+                        android:layout_marginEnd="6dp"
+                        android:background="@drawable/btn_gradient"
+                        android:text="Re-route Safe"
+                        android:textColor="#FFFFFF"
+                        android:textSize="12sp"
+                        android:textStyle="bold"/>
+
+                    <Button
+                        android:id="@+id/btnDismissDeviation"
+                        android:layout_width="0dp"
+                        android:layout_height="38dp"
+                        android:layout_weight="1"
+                        android:background="@drawable/btn_outline"
+                        android:text="I'm OK"
+                        android:textColor="#666666"
+                        android:textSize="12sp"/>
+                </LinearLayout>
+            </LinearLayout>
+
+            <!-- ── ACTION BUTTONS ── -->
+            <Button
+                android:id="@+id/btnSafeRoute"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:background="@drawable/btn_gradient"
+                android:text="🛡️ Calculate Safe Corridor"
+                android:textColor="#FFFFFF"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                android:layout_marginBottom="8dp"/>
+
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="horizontal"
-                android:weightSum="2">
+                android:weightSum="2"
+                android:layout_marginBottom="16dp">
 
                 <Button
-                    android:id="@+id/btnSafeRoute"
+                    android:id="@+id/btnTestDeviation"
                     android:layout_width="0dp"
-                    android:layout_height="48dp"
+                    android:layout_height="44dp"
                     android:layout_weight="1"
-                    android:layout_marginEnd="8dp"
-                    android:background="@drawable/btn_outline_purple"
-                    android:drawableStart="@android:drawable/ic_menu_directions"
-                    android:drawablePadding="6dp"
-                    android:text="Safe Route"
-                    android:textColor="#9B2FC9"
-                    android:textSize="13sp"/>
+                    android:layout_marginEnd="6dp"
+                    android:background="@drawable/btn_outline"
+                    android:text="⚠️ Test 120m Alert"
+                    android:textColor="#E53935"
+                    android:textSize="12sp"/>
 
                 <Button
                     android:id="@+id/btnShareLocation"
                     android:layout_width="0dp"
-                    android:layout_height="48dp"
+                    android:layout_height="44dp"
                     android:layout_weight="1"
                     android:background="@drawable/btn_outline_purple"
-                    android:drawableStart="@android:drawable/ic_menu_share"
-                    android:drawablePadding="6dp"
-                    android:text="Share Location"
+                    android:text="📤 Share Trip"
                     android:textColor="#9B2FC9"
-                    android:textSize="13sp"/>
+                    android:textSize="12sp"/>
             </LinearLayout>
 
         </LinearLayout>

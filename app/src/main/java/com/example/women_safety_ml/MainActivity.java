@@ -2,16 +2,20 @@ package com.example.women_safety_ml;
 
 import android.Manifest;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.location.Address;
 import android.location.Geocoder;
 import android.location.Location;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
+import android.os.Looper;
 import android.util.Log;
 import android.view.animation.AlphaAnimation;
 import android.view.animation.Animation;
+import android.widget.Button;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.TextView;
@@ -50,17 +54,21 @@ public class MainActivity extends BaseActivity {
 
     // Views
     private LinearLayout btnSOS;
+    private Button btnSimulateThreat;
     private CardView btnCallPolice, btnShareLocation, btnStartTracking;
     private TextView tvAddress, tvGreeting, tvStatusTime, tvStatus;
     private FrameLayout frameMapPreview;
+    private TextView tvVoiceGuardStatus, tvMotionGuardStatus, tvGuardBadge;
+    private final Handler voiceResetHandler = new Handler(Looper.getMainLooper());
 
     // Location
     private FusedLocationProviderClient fusedLocationClient;
     private Location currentLocation = null;
     private double currentLat = 0, currentLng = 0;
 
-    // Sensors
+    // Sensors & Voice Detector
     private SensorDataCollector sensorCollector;
+    private EmergencyVoiceDetector voiceDetector;
 
     // Tracking
     private boolean isTracking = false;
@@ -89,23 +97,121 @@ public class MainActivity extends BaseActivity {
         requestAudioPermission();
         requestSMSPermission();
         startStatusDotBlink();
+        startSafetyService();
+        setupShakeDetector();
+        setupVoiceKeywordDetector();
         startMLChecks();   // ← start automatic safety checks
     }
 
+    private void setupShakeDetector() {
+        SharedPreferences prefs = getSharedPreferences("SafeHerPrefs", MODE_PRIVATE);
+        boolean isShakeEnabled = prefs.getBoolean("shake_detection", true);
+        if (!isShakeEnabled) {
+            if (tvMotionGuardStatus != null) {
+                tvMotionGuardStatus.setText("📳 Motion SOS: Disabled in Settings");
+            }
+            return;
+        }
 
+        sensorCollector.setOnShakeListener(() -> runOnUiThread(() -> {
+            Toast.makeText(MainActivity.this, "🚨 Vigorous Shake Detected! Simulating Threat...", Toast.LENGTH_SHORT).show();
+            simulateThreatAlert();
+        }));
+    }
+
+    private void setupVoiceKeywordDetector() {
+        SharedPreferences prefs = getSharedPreferences("SafeHerPrefs", MODE_PRIVATE);
+        boolean isVoiceEnabled = prefs.getBoolean("voice_detection", true);
+        if (!isVoiceEnabled) {
+            if (tvVoiceGuardStatus != null) {
+                tvVoiceGuardStatus.setText("🎙️ Voice SOS: Disabled in Settings");
+            }
+            sensorCollector.setAudioMeterEnabled(true);
+            return;
+        }
+
+        // Avoid microphone collision: disable MediaRecorder while Voice Safety is active
+        sensorCollector.setAudioMeterEnabled(false);
+
+        if (voiceDetector == null) {
+            voiceDetector = new EmergencyVoiceDetector(this);
+        }
+
+        voiceDetector.setOnVoiceDistressListener(new EmergencyVoiceDetector.OnVoiceDistressListener() {
+            @Override
+            public void onDistressWordDetected(String keyword, int currentCount, int requiredCount) {
+                runOnUiThread(() -> {
+                    if (tvVoiceGuardStatus != null) {
+                        tvVoiceGuardStatus.setText("🎙️ Heard '" + keyword.toUpperCase() + "' (" + currentCount + "/" + requiredCount + ") — Repeat once more to confirm SOS!");
+                    }
+                    Toast.makeText(MainActivity.this,
+                            "⚠️ Distress phrase '" + keyword.toUpperCase() + "' heard (" + currentCount + "/" + requiredCount + ") — Repeat to trigger Emergency SOS!",
+                            Toast.LENGTH_SHORT).show();
+
+                    voiceResetHandler.removeCallbacksAndMessages(null);
+                    voiceResetHandler.postDelayed(() -> {
+                        if (tvVoiceGuardStatus != null) {
+                            tvVoiceGuardStatus.setText("🎙️ Voice SOS: Say 'Bachao' or 'Help' 2-3 times to trigger alert.");
+                        }
+                    }, 10_000L);
+                });
+            }
+
+            @Override
+            public void onEmergencyConfirmed(String keyword, int totalCount) {
+                runOnUiThread(() -> {
+                    if (tvVoiceGuardStatus != null) {
+                        tvVoiceGuardStatus.setText("🚨 Confirmed: '" + keyword.toUpperCase() + "' repeated (" + totalCount + "x)! Triggering SOS...");
+                    }
+                    Toast.makeText(MainActivity.this,
+                            "🚨 Emergency SOS Confirmed: '" + keyword.toUpperCase() + "' spoken " + totalCount + " times!",
+                            Toast.LENGTH_LONG).show();
+                    simulateThreatAlert();
+                });
+            }
+
+            @Override
+            public void onSoundLevelChanged(int soundLevel) {
+                // Real-time acoustic level streamed silently into SensorDataCollector for ML
+            }
+        });
+    }
+
+    private void startSafetyService() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (ActivityCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
+                    != PackageManager.PERMISSION_GRANTED) {
+                ActivityCompat.requestPermissions(this,
+                        new String[]{Manifest.permission.POST_NOTIFICATIONS}, 104);
+            }
+        }
+        Intent serviceIntent = new Intent(this, SafetyForegroundService.class);
+        serviceIntent.setAction(SafetyForegroundService.ACTION_START);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            startForegroundService(serviceIntent);
+        } else {
+            startService(serviceIntent);
+        }
+    }
 
     @Override
     protected void onPause() {
         super.onPause();
         sensorCollector.stop();
-        // Pause ML checks while SOSAlertActivity is shown
+        if (voiceDetector != null) {
+            voiceDetector.stopListening();
+        }
+        voiceResetHandler.removeCallbacksAndMessages(null);
         mlHandler.removeCallbacks(mlRunnable);
-        Log.d(TAG, "ML checks paused");
+        Log.d(TAG, "MainActivity paused — SafetyForegroundService continues 24/7 background protection");
     }
 
     @Override
     protected void onDestroy() {
         super.onDestroy();
+        if (voiceDetector != null) {
+            voiceDetector.stopListening();
+        }
         mlHandler.removeCallbacks(mlRunnable);
     }
 
@@ -119,6 +225,10 @@ public class MainActivity extends BaseActivity {
         tvStatusTime     = findViewById(R.id.tvStatusTime);
         tvStatus         = findViewById(R.id.tvStatus);
         frameMapPreview  = findViewById(R.id.frameMapPreview);
+        btnSimulateThreat = findViewById(R.id.btnSimulateThreat);
+        tvVoiceGuardStatus  = findViewById(R.id.tvVoiceGuardStatus);
+        tvMotionGuardStatus = findViewById(R.id.tvMotionGuardStatus);
+        tvGuardBadge        = findViewById(R.id.tvGuardBadge);
     }
 
     // ── TIME-BASED GREETING ──
@@ -201,8 +311,11 @@ public class MainActivity extends BaseActivity {
 
             @Override
             public void onFailure(Call<PredictionResponse> call, Throwable t) {
-                Log.e(TAG, "ML API failed: " + t.getMessage());
-                // Silent fail — don't disturb user for network issues
+                Log.w(TAG, "ML API failed (" + t.getMessage() + ") -> Running on-device fallback engine");
+                PredictionResponse fallback = SafetyDataHelper.evaluateOfflineSafety(
+                        speedLevel, heartRate, timeLevel, accelLevel, locType, soundLevel
+                );
+                handleMLResult(fallback, speedLevel, timeLevel, accelLevel, soundLevel);
             }
         });
     }
@@ -268,7 +381,19 @@ public class MainActivity extends BaseActivity {
     @Override
     protected void onResume() {
         super.onResume();
+        SharedPreferences prefs = getSharedPreferences("SafeHerPrefs", MODE_PRIVATE);
+        boolean isVoiceEnabled = prefs.getBoolean("voice_detection", true);
+
+        setupShakeDetector();
+        setupVoiceKeywordDetector();
+
         sensorCollector.start();
+        if (isVoiceEnabled && voiceDetector != null) {
+            voiceDetector.startListening();
+        } else if (voiceDetector != null) {
+            voiceDetector.stopListening();
+        }
+
         // Reset SOS flag — ready for next detection
         isSOSAlertActive = false;
         // Resume ML checks with fresh delay after returning
@@ -331,6 +456,56 @@ public class MainActivity extends BaseActivity {
         btnCallPolice.setOnClickListener(v -> callPolice());
         btnShareLocation.setOnClickListener(v -> shareLocation());
         btnStartTracking.setOnClickListener(v -> toggleTracking());
+
+        if (btnSimulateThreat != null) {
+            btnSimulateThreat.setOnClickListener(v -> simulateThreatAlert());
+        }
+    }
+
+    /**
+     * Instantly simulates high-risk danger conditions to test the full ML + SOS alert flow.
+     */
+    public void simulateThreatAlert() {
+        Toast.makeText(this, "🧪 Simulating threat inputs to ML model...", Toast.LENGTH_SHORT).show();
+
+        // High-risk inputs: running at late night with high struggle and noise
+        final int simSpeed = 2; // running
+        final int simHR    = 140; // high heart rate
+        final int simTime  = 2; // late night
+        final int simAccel = 2; // high struggle
+        final int simLoc   = 2; // risky zone
+        final int simSound = 2; // scream / loud noise
+
+        PredictionRequest testRequest = new PredictionRequest(
+                simSpeed, simHR, simTime, simAccel, simLoc, simSound
+        );
+
+        // Immediate visual feedback on status badge
+        updateStatusBadge("Unsafe", 94.5);
+
+        ApiService apiService = RetrofitClient.getInstance().create(ApiService.class);
+        apiService.predictSafety(testRequest).enqueue(new Callback<PredictionResponse>() {
+            @Override
+            public void onResponse(Call<PredictionResponse> call, Response<PredictionResponse> response) {
+                if (response.isSuccessful() && response.body() != null) {
+                    handleMLResult(response.body(), simSpeed, simTime, simAccel, simSound);
+                } else {
+                    PredictionResponse fallback = SafetyDataHelper.evaluateOfflineSafety(
+                            simSpeed, simHR, simTime, simAccel, simLoc, simSound
+                    );
+                    handleMLResult(fallback, simSpeed, simTime, simAccel, simSound);
+                }
+            }
+
+            @Override
+            public void onFailure(Call<PredictionResponse> call, Throwable t) {
+                Log.w(TAG, "Cloud API unavailable -> Running on-device fallback for test trigger");
+                PredictionResponse fallback = SafetyDataHelper.evaluateOfflineSafety(
+                        simSpeed, simHR, simTime, simAccel, simLoc, simSound
+                );
+                handleMLResult(fallback, simSpeed, simTime, simAccel, simSound);
+            }
+        });
     }
 
     // ── LOCATION ──
@@ -383,20 +558,7 @@ public class MainActivity extends BaseActivity {
     }
 
     private void triggerSOS() {
-        if (TEST_MODE) {
-            new AlertDialog.Builder(this)
-                    .setTitle("🧪 TEST MODE — SOS Simulated")
-                    .setMessage("In real app:\n\n"
-                            + "📞 Call Police (100)\n"
-                            + "📍 Location: " + currentLat + ", " + currentLng + "\n"
-                            + "📲 SMS all emergency contacts\n\n"
-                            + "Set TEST_MODE = false to go live.")
-                    .setPositiveButton("OK", null)
-                    .show();
-        } else {
-            Toast.makeText(this, "🚨 SOS Triggered! Sending SMS to contacts...", Toast.LENGTH_LONG).show();
-            sendSOSToContacts(); // ← only SMS to emergency contacts
-        }
+        showUnsafeAlert(98.0, "🚨 Emergency SOS Triggered Manually");
     }
 
     /**

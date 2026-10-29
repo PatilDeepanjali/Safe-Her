@@ -12,7 +12,7 @@ import androidx.appcompat.app.AppCompatActivity;
 
 public class SOSAlertActivity extends AppCompatActivity {
 
-    private static final long COUNTDOWN_MS = 3 * 60 * 1000; // 3 minutes
+    private static final long COUNTDOWN_MS = 10_000; // 10 seconds rapid response prompt
     private static final long INTERVAL_MS  = 1000;
 
     public static final String EXTRA_RISK    = "risk";
@@ -28,6 +28,7 @@ public class SOSAlertActivity extends AppCompatActivity {
     private double lat, lng, risk;
     private String summary;
     private SOSManager sosManager;
+    private AudioEvidenceRecorder audioEvidenceRecorder;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -42,6 +43,7 @@ public class SOSAlertActivity extends AppCompatActivity {
         lng     = getIntent().getDoubleExtra(EXTRA_LNG, 0);
 
         sosManager = new SOSManager(this);
+        audioEvidenceRecorder = new AudioEvidenceRecorder(this);
 
         initViews();
         startCountdown();
@@ -55,15 +57,16 @@ public class SOSAlertActivity extends AppCompatActivity {
         btnSafe     = findViewById(R.id.btnImSafe);
         btnSOSNow   = findViewById(R.id.btnSendSOSNow);
 
-        tvRisk.setText("Risk Level: " + risk + "%");
-        tvSummary.setText(summary != null ? summary : "Stay alert!");
+        tvRisk.setText(String.format("Risk Level: %.1f%%", risk));
+        tvSummary.setText(summary != null ? summary : "Potential threat detected. Are you safe?");
         progressBar.setMax((int)(COUNTDOWN_MS / INTERVAL_MS));
         progressBar.setProgress((int)(COUNTDOWN_MS / INTERVAL_MS));
 
-        // I'm Safe button
+        // I'm Safe button - cancels and logs false alarm for ML feedback
         btnSafe.setOnClickListener(v -> {
             cancelCountdown();
-            Toast.makeText(this, "Glad you are safe! ✅", Toast.LENGTH_SHORT).show();
+            logFalseAlarmFeedback();
+            Toast.makeText(this, "Glad you are safe! False alarm logged. ✅", Toast.LENGTH_SHORT).show();
             finish();
         });
 
@@ -74,23 +77,38 @@ public class SOSAlertActivity extends AppCompatActivity {
         });
     }
 
+    private void logFalseAlarmFeedback() {
+        com.google.firebase.auth.FirebaseAuth auth = com.google.firebase.auth.FirebaseAuth.getInstance();
+        if (auth.getCurrentUser() == null) return;
+
+        java.util.Map<String, Object> log = new java.util.HashMap<>();
+        log.put("feedback", "user_marked_safe");
+        log.put("originalRisk", risk);
+        log.put("summary", summary);
+        log.put("timestamp", System.currentTimeMillis());
+        log.put("latitude", lat);
+        log.put("longitude", lng);
+
+        com.google.firebase.firestore.FirebaseFirestore.getInstance()
+                .collection("users")
+                .document(auth.getCurrentUser().getUid())
+                .collection("feedback_logs")
+                .add(log);
+    }
+
     private void startCountdown() {
         countDownTimer = new CountDownTimer(COUNTDOWN_MS, INTERVAL_MS) {
             @Override
             public void onTick(long millisLeft) {
-                long secs    = millisLeft / 1000;
-                long minutes = secs / 60;
-                long seconds = secs % 60;
-
-                tvCountdown.setText(String.format(
-                        "Auto SOS in: %02d:%02d", minutes, seconds));
+                long secs = millisLeft / 1000;
+                tvCountdown.setText(String.format("Auto SOS in: %02ds (Tap 'I'm Safe' to cancel)", secs));
                 progressBar.setProgress((int)(millisLeft / INTERVAL_MS));
-                tvCountdown.setTextColor(secs <= 30 ? 0xFFE53935 : 0xFFFF9800);
+                tvCountdown.setTextColor(secs <= 5 ? 0xFFE53935 : 0xFFFF9800);
             }
 
             @Override
             public void onFinish() {
-                tvCountdown.setText("Sending SOS...");
+                tvCountdown.setText("Auto SOS triggered! Sending alerts...");
                 sendSOS();
             }
         }.start();
@@ -99,14 +117,27 @@ public class SOSAlertActivity extends AppCompatActivity {
     private void sendSOS() {
         btnSafe.setEnabled(false);
         btnSOSNow.setEnabled(false);
-        tvCountdown.setText("Sending SOS to contacts...");
+        tvCountdown.setText("Dispatching SOS & Capturing Evidence...");
+
+        // Objective 5: Record 15-second acoustic evidence clip locally & log to Firestore
+        audioEvidenceRecorder.startRecordingEvidence(lat, lng, new AudioEvidenceRecorder.OnEvidenceRecordedListener() {
+            @Override
+            public void onEvidenceReady(java.io.File evidenceFile) {
+                android.util.Log.d("SOSAlertActivity", "Evidence recorded: " + evidenceFile.getName());
+            }
+
+            @Override
+            public void onEvidenceFailed(String error) {
+                android.util.Log.e("SOSAlertActivity", "Evidence recording error: " + error);
+            }
+        });
 
         sosManager.sendSOSToAllContacts(lat, lng, new SOSManager.SOSCallback() {
             @Override
             public void onSMSSent(int count) {
                 runOnUiThread(() -> {
                     Toast.makeText(SOSAlertActivity.this,
-                            "SOS sent to " + count + " contacts!", Toast.LENGTH_LONG).show();
+                            "🚨 SOS sent to " + count + " emergency contacts! Evidence recording active.", Toast.LENGTH_LONG).show();
                     finish();
                 });
             }
