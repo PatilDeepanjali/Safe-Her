@@ -3,6 +3,7 @@ package com.example.women_safety_ml;
 import android.content.Context;
 import android.content.Intent;
 import android.media.AudioManager;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -20,46 +21,28 @@ import java.util.Locale;
  * EmergencyVoiceDetector
  * 
  * Production-ready Distress Voice Keyword Detection for SafeHer:
- * 1. Multi-Repetition Verification: Requires 2-3 repeated utterances of distress keywords
- *    ("Bachao", "Help", etc.) within a 10-second sliding window before triggering SOS,
- *    preventing accidental false alarms from casual conversations or background audio.
- * 2. Silent Operation: Programmatically mutes system and notification streams during
- *    recognizer start to suppress the loud Google Assistant start/stop chime.
- * 3. Graceful Backoff: Non-aggressive retry intervals (1.2s - 2.5s) to prevent audio driver choking.
- * 4. Ambient Sound Integration: Extracts real-time RMS decibels and maps them to ML SoundLevel (0/1/2).
+ * 1. 100% Silent Background Operation: Suppresses the Google Assistant start/stop chime
+ *    and system ding by muting streams throughout continuous listening.
+ * 2. Multi-Repetition Verification: Requires 2-3 repeated utterances of distress keywords
+ *    ("Bachao", "Help", etc.) within a 10-second sliding window before triggering SOS.
+ * 3. Operates across every screen of the app.
+ * 4. Ambient Decibel Mapping: Passes real-time sound levels to ML (0=quiet, 1=moderate, 2=screaming).
  */
 public class EmergencyVoiceDetector implements RecognitionListener {
 
     private static final String TAG = "EmergencyVoiceDetector";
 
     public interface OnVoiceDistressListener {
-        /**
-         * Called when a distress keyword is heard once or twice, but threshold not yet met.
-         * @param keyword The detected word (e.g. "bachao")
-         * @param currentCount Repetitions heard so far within the temporal window
-         * @param requiredCount Total repetitions required to confirm emergency (2)
-         */
         void onDistressWordDetected(String keyword, int currentCount, int requiredCount);
-
-        /**
-         * Called when the distress keyword has been repeated 2-3 times within the temporal window.
-         * @param keyword The confirmed distress keyword
-         * @param totalCount Total count of repetitions
-         */
         void onEmergencyConfirmed(String keyword, int totalCount);
-
-        /**
-         * Real-time acoustic level update (0=quiet, 1=moderate, 2=loud/scream)
-         */
         void onSoundLevelChanged(int soundLevel);
     }
 
     // Emergency distress keywords in Hindi, Marathi & English
     private static final String[] EMERGENCY_KEYWORDS = {
-            "bachao", "help", "save me", "police", "madad", "danger", "emergency"
+            "bachao", "help", "save me", "police", "madad", "danger", "emergency", "chodo", "leave me"
     };
 
-    // Repetition requirements
     public static final int REQUIRED_REPETITIONS = 2; // Saying "Bachao" 2-3 times triggers emergency
     private static final long SLIDING_WINDOW_MS  = 10_000L; // 10-second sliding window
 
@@ -73,7 +56,6 @@ public class EmergencyVoiceDetector implements RecognitionListener {
     private boolean isMutedForBeep = false;
     private int originalSystemVol = -1;
     private int originalNotifVol  = -1;
-    private int originalMusicVol  = -1;
 
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final List<Long> detectionTimestamps = new ArrayList<>();
@@ -109,24 +91,34 @@ public class EmergencyVoiceDetector implements RecognitionListener {
             recognizerIntent.putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true);
             recognizerIntent.putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 3);
             recognizerIntent.putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, context.getPackageName());
+
+            // Flags to suppress Google Assistant voice / chime / UI popups
+            recognizerIntent.putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true);
+            recognizerIntent.putExtra("android.speech.extra.DICTATION_MODE", true);
+            recognizerIntent.putExtra("android.speech.extras.SPEECH_INPUT_MINIMUM_LENGTH_MILLIS", 2500);
+            recognizerIntent.putExtra("android.speech.extras.SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS", 1500);
+            recognizerIntent.putExtra("android.speech.extras.SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS", 1500);
         } catch (Exception e) {
             Log.e(TAG, "Failed to initialize SpeechRecognizer: " + e.getMessage());
         }
     }
 
     /**
-     * Temporarily mute device streams so the Google Assistant chime isn't audible on start
+     * Completely mute system and notification streams so Google Assistant chime never plays
      */
     private void muteBeepSounds() {
         if (audioManager == null || isMutedForBeep) return;
         try {
             originalSystemVol = audioManager.getStreamVolume(AudioManager.STREAM_SYSTEM);
             originalNotifVol  = audioManager.getStreamVolume(AudioManager.STREAM_NOTIFICATION);
-            originalMusicVol  = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC);
 
-            audioManager.setStreamVolume(AudioManager.STREAM_SYSTEM, 0, 0);
-            audioManager.setStreamVolume(AudioManager.STREAM_NOTIFICATION, 0, 0);
-            audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, 0, 0);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                audioManager.adjustStreamVolume(AudioManager.STREAM_NOTIFICATION, AudioManager.ADJUST_MUTE, 0);
+                audioManager.adjustStreamVolume(AudioManager.STREAM_SYSTEM, AudioManager.ADJUST_MUTE, 0);
+            } else {
+                audioManager.setStreamVolume(AudioManager.STREAM_SYSTEM, 0, 0);
+                audioManager.setStreamVolume(AudioManager.STREAM_NOTIFICATION, 0, 0);
+            }
             isMutedForBeep = true;
         } catch (Exception e) {
             Log.d(TAG, "Mute volume error: " + e.getMessage());
@@ -134,19 +126,21 @@ public class EmergencyVoiceDetector implements RecognitionListener {
     }
 
     /**
-     * Restore system audio streams after the recognizer starts listening
+     * Restores system streams ONLY when speech recognition is explicitly stopped
      */
     private void restoreBeepSounds() {
         if (audioManager == null || !isMutedForBeep) return;
         try {
-            if (originalSystemVol >= 0) {
-                audioManager.setStreamVolume(AudioManager.STREAM_SYSTEM, originalSystemVol, 0);
-            }
-            if (originalNotifVol >= 0) {
-                audioManager.setStreamVolume(AudioManager.STREAM_NOTIFICATION, originalNotifVol, 0);
-            }
-            if (originalMusicVol >= 0) {
-                audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, originalMusicVol, 0);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                audioManager.adjustStreamVolume(AudioManager.STREAM_NOTIFICATION, AudioManager.ADJUST_UNMUTE, 0);
+                audioManager.adjustStreamVolume(AudioManager.STREAM_SYSTEM, AudioManager.ADJUST_UNMUTE, 0);
+            } else {
+                if (originalSystemVol >= 0) {
+                    audioManager.setStreamVolume(AudioManager.STREAM_SYSTEM, originalSystemVol, 0);
+                }
+                if (originalNotifVol >= 0) {
+                    audioManager.setStreamVolume(AudioManager.STREAM_NOTIFICATION, originalNotifVol, 0);
+                }
             }
             isMutedForBeep = false;
         } catch (Exception e) {
@@ -166,10 +160,9 @@ public class EmergencyVoiceDetector implements RecognitionListener {
         muteBeepSounds();
         try {
             speechRecognizer.startListening(recognizerIntent);
-            Log.d(TAG, "Emergency voice listener started silently 🎙️");
+            Log.d(TAG, "Emergency voice listener started silently (No Google Assistant beep) 🎙️");
         } catch (Exception e) {
             Log.e(TAG, "Error starting voice listener: " + e.getMessage());
-            restoreBeepSounds();
             scheduleRestart(2500);
         }
     }
@@ -177,7 +170,6 @@ public class EmergencyVoiceDetector implements RecognitionListener {
     public synchronized void stopListening() {
         isListening = false;
         handler.removeCallbacksAndMessages(null);
-        restoreBeepSounds();
 
         if (speechRecognizer != null) {
             try {
@@ -187,6 +179,9 @@ public class EmergencyVoiceDetector implements RecognitionListener {
                 Log.e(TAG, "Error stopping voice listener: " + e.getMessage());
             }
         }
+
+        // Restore system volume only after stopping completely
+        handler.postDelayed(this::restoreBeepSounds, 500);
         Log.d(TAG, "Emergency voice listener stopped 🛑");
     }
 
@@ -201,7 +196,6 @@ public class EmergencyVoiceDetector implements RecognitionListener {
                         speechRecognizer.startListening(recognizerIntent);
                     } catch (Exception e) {
                         Log.e(TAG, "Restart listening error: " + e.getMessage());
-                        restoreBeepSounds();
                         initRecognizer();
                         scheduleRestart(3000);
                     }
@@ -275,13 +269,12 @@ public class EmergencyVoiceDetector implements RecognitionListener {
 
     @Override
     public void onReadyForSpeech(Bundle params) {
-        // Start beep has finished; restore system volumes safely
-        restoreBeepSounds();
+        // Keep streams muted to ensure zero beep audio cues
     }
 
     @Override
     public void onBeginningOfSpeech() {
-        restoreBeepSounds();
+        // Keep streams muted
     }
 
     @Override
@@ -303,10 +296,9 @@ public class EmergencyVoiceDetector implements RecognitionListener {
 
     @Override
     public void onResults(Bundle results) {
-        restoreBeepSounds();
         ArrayList<String> matches = results.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
         processSpokenText(matches);
-        scheduleRestart(1200);
+        scheduleRestart(1000);
     }
 
     @Override
@@ -317,12 +309,11 @@ public class EmergencyVoiceDetector implements RecognitionListener {
 
     @Override
     public void onError(int error) {
-        restoreBeepSounds();
         Log.d(TAG, "SpeechRecognizer status code: " + error);
 
-        long backoff = 1500;
+        long backoff = 1200;
         if (error == SpeechRecognizer.ERROR_AUDIO || error == SpeechRecognizer.ERROR_CLIENT) {
-            backoff = 2500;
+            backoff = 2200;
         } else if (error == SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS) {
             stopListening();
             return;
@@ -332,7 +323,7 @@ public class EmergencyVoiceDetector implements RecognitionListener {
     }
 
     @Override public void onBufferReceived(byte[] buffer) {}
-    @Override public void onEndOfSpeech() { restoreBeepSounds(); }
+    @Override public void onEndOfSpeech() {}
     @Override public void onEvent(int eventType, Bundle params) {}
 
     public int getCurrentEstimatedSoundLevel() {

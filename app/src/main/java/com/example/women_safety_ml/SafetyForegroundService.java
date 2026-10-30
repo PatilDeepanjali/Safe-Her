@@ -5,8 +5,10 @@ import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.Service;
+import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.pm.PackageManager;
 import android.location.Location;
 import android.os.Build;
@@ -31,6 +33,7 @@ import retrofit2.Response;
  * SafetyForegroundService
  * Runs 24/7 in the background with a persistent notification.
  * Keeps sensors and ML safety checks running even when the phone is locked or in a pocket.
+ * Detects 4-second Volume Up button press from Lock Screen or Background to trigger emergency SOS.
  */
 public class SafetyForegroundService extends Service {
 
@@ -52,6 +55,12 @@ public class SafetyForegroundService extends Service {
     private Location lastLocation = null;
     private boolean isAlertActive = false;
     private RiskFusionEngine fusionEngine;
+
+    // ── Lock Screen & Background Volume-Up SOS Trigger (Held for 4 seconds) ──
+    private BroadcastReceiver volumeButtonReceiver;
+    private long volumePressStartTime = 0;
+    private long lastVolumeEventTime = 0;
+    private int volumePressEventCount = 0;
 
     @Override
     public void onCreate() {
@@ -94,6 +103,9 @@ public class SafetyForegroundService extends Service {
         // Start listening to phone sensors
         sensorCollector.start();
 
+        // Register hardware Volume-Up lock screen listener
+        registerVolumeButtonReceiver();
+
         // Start recurring ML check
         mlRunnable = new Runnable() {
             @Override
@@ -109,6 +121,8 @@ public class SafetyForegroundService extends Service {
 
     private void stopForegroundService() {
         isRunning = false;
+        unregisterVolumeButtonReceiver();
+
         if (serviceHandler != null && mlRunnable != null) {
             serviceHandler.removeCallbacks(mlRunnable);
         }
@@ -121,6 +135,60 @@ public class SafetyForegroundService extends Service {
         stopForeground(true);
         stopSelf();
         Log.d(TAG, "SafetyForegroundService stopped 🛑");
+    }
+
+    private void registerVolumeButtonReceiver() {
+        if (volumeButtonReceiver != null) return;
+
+        volumeButtonReceiver = new BroadcastReceiver() {
+            @Override
+            public void onReceive(Context context, Intent intent) {
+                if ("android.media.VOLUME_CHANGED_ACTION".equals(intent.getAction())) {
+                    int newVol = intent.getIntExtra("android.media.EXTRA_VOLUME_STREAM_VALUE", -1);
+                    int prevVol = intent.getIntExtra("android.media.EXTRA_PREV_VOLUME_STREAM_VALUE", -1);
+
+                    long now = System.currentTimeMillis();
+                    boolean isVolumeUp = (newVol >= prevVol && newVol > 0);
+
+                    if (isVolumeUp) {
+                        if (volumePressStartTime == 0 || (now - lastVolumeEventTime > 2500)) {
+                            volumePressStartTime = now;
+                            volumePressEventCount = 1;
+                        } else {
+                            volumePressEventCount++;
+                        }
+                        lastVolumeEventTime = now;
+
+                        long duration = now - volumePressStartTime;
+                        Log.d(TAG, "Lock/BG Volume-Up pressed: duration=" + duration + "ms (count=" + volumePressEventCount + ")");
+
+                        // If volume increasing button is held/pressed continuously for 4 seconds
+                        if (duration >= 3800L && volumePressEventCount >= 2) {
+                            volumePressStartTime = 0;
+                            volumePressEventCount = 0;
+                            Log.w(TAG, "🚨 Volume Up pressed for 4 seconds on lock screen! Launching SOS!");
+                            triggerEmergencyAlert(99.0, "🚨 Emergency SOS: Volume Button Pressed for 4 Seconds on Lock Screen");
+                        }
+                    } else {
+                        volumePressStartTime = 0;
+                        volumePressEventCount = 0;
+                    }
+                }
+            }
+        };
+
+        IntentFilter filter = new IntentFilter("android.media.VOLUME_CHANGED_ACTION");
+        registerReceiver(volumeButtonReceiver, filter);
+        Log.d(TAG, "Lock screen Volume-Up 4s detector registered ✅");
+    }
+
+    private void unregisterVolumeButtonReceiver() {
+        if (volumeButtonReceiver != null) {
+            try {
+                unregisterReceiver(volumeButtonReceiver);
+            } catch (Exception ignored) {}
+            volumeButtonReceiver = null;
+        }
     }
 
     private void performBackgroundSafetyCheck() {
@@ -214,6 +282,15 @@ public class SafetyForegroundService extends Service {
         isAlertActive = true;
 
         Log.w(TAG, "⚠️ POTENTIAL DANGER DETECTED! Waking device and launching SOS countdown!");
+
+        // Wake screen if device is locked
+        PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
+        if (pm != null) {
+            PowerManager.WakeLock screenWakeLock = pm.newWakeLock(
+                    PowerManager.SCREEN_BRIGHT_WAKE_LOCK | PowerManager.ACQUIRE_CAUSES_WAKEUP | PowerManager.ON_AFTER_RELEASE,
+                    "SafeHer:LockScreenSOSWake");
+            screenWakeLock.acquire(15000);
+        }
 
         Intent alertIntent = new Intent(this, SOSAlertActivity.class);
         alertIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK

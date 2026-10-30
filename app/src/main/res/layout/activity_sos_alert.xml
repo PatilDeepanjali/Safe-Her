@@ -3,110 +3,113 @@
     xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#1A1A2E"
+    android:background="#121016"
     android:gravity="center"
     android:orientation="vertical"
-    android:padding="32dp">
+    android:padding="28dp">
 
     <!-- Warning Icon -->
     <ImageView
-        android:layout_width="80dp"
-        android:layout_height="80dp"
+        android:layout_width="72dp"
+        android:layout_height="72dp"
         android:src="@android:drawable/ic_dialog_alert"
-        android:contentDescription="Warning"
+        android:contentDescription="Emergency Warning"
         android:layout_marginBottom="16dp"/>
 
-    <!-- Title -->
+    <!-- Step 6 Title: Are You OK? -->
     <TextView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="UNSAFE SITUATION DETECTED"
-        android:textColor="#E53935"
-        android:textSize="20sp"
+        android:text="Are You OK?"
+        android:textColor="#FF5449"
+        android:textSize="26sp"
         android:textStyle="bold"
         android:gravity="center"
-        android:layout_marginBottom="12dp"/>
+        android:layout_marginBottom="8dp"/>
 
     <!-- Risk Level -->
     <TextView
         android:id="@+id/tvRiskLevel"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Risk Level: 0%"
-        android:textColor="#FF9800"
-        android:textSize="18sp"
+        android:text="High Risk Detected"
+        android:textColor="#FFB787"
+        android:textSize="17sp"
         android:textStyle="bold"
         android:gravity="center"
-        android:layout_marginBottom="8dp"/>
+        android:layout_marginBottom="6dp"/>
 
-    <!-- Summary -->
+    <!-- Summary of Contributors -->
     <TextView
         android:id="@+id/tvSummary"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text=""
-        android:textColor="#CCCCCC"
-        android:textSize="14sp"
+        android:text="Unusual movement and distress audio pattern detected."
+        android:textColor="#C9C5D0"
+        android:textSize="13sp"
         android:gravity="center"
-        android:layout_marginBottom="32dp"/>
+        android:layout_marginBottom="24dp"/>
 
     <!-- Divider -->
     <View
         android:layout_width="match_parent"
         android:layout_height="1dp"
-        android:background="#333355"
-        android:layout_marginBottom="24dp"/>
+        android:background="#36343B"
+        android:layout_marginBottom="20dp"/>
 
-    <!-- Countdown -->
+    <!-- Countdown: Step 6 (10-Second Countdown) -->
     <TextView
         android:id="@+id/tvCountdown"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Auto SOS in: 03:00"
-        android:textColor="#FF9800"
-        android:textSize="28sp"
+        android:text="Auto SOS in: 10s"
+        android:textColor="#FFB787"
+        android:textSize="26sp"
         android:textStyle="bold"
         android:gravity="center"
-        android:layout_marginBottom="16dp"/>
+        android:layout_marginBottom="12dp"/>
 
     <!-- Progress Bar -->
     <ProgressBar
         android:id="@+id/progressCountdown"
         style="@android:style/Widget.ProgressBar.Horizontal"
         android:layout_width="match_parent"
-        android:layout_height="10dp"
+        android:layout_height="8dp"
         android:layout_marginBottom="16dp"/>
 
-    <!-- Info -->
+    <!-- Step 6 Instructional Guidance -->
     <TextView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="SOS will be sent automatically to your emergency contacts if you do not respond."
-        android:textColor="#888888"
+        android:text="Tap 'I’m Safe' to cancel. If no response within 10 seconds, an SOS alert with your live GPS location will be sent automatically to your trusted contacts."
+        android:textColor="#938F99"
         android:textSize="12sp"
         android:gravity="center"
-        android:layout_marginBottom="40dp"/>
+        android:layout_marginBottom="32dp"/>
 
     <!-- Buttons -->
-    <Button
-        android:id="@+id/btnSendSOSNow"
-        android:layout_width="match_parent"
-        android:layout_height="56dp"
-        android:background="@drawable/sos_button"
-        android:text="SEND SOS NOW"
-        android:textColor="#FFFFFF"
-        android:textSize="16sp"
-        android:textStyle="bold"
-        android:layout_marginBottom="16dp"/>
-
     <Button
         android:id="@+id/btnImSafe"
         android:layout_width="match_parent"
         android:layout_height="52dp"
-        android:background="@drawable/btn_outline_purple"
-        android:text="I am Safe - Dismiss"
-        android:textColor="#9B2FC9"
+        android:background="@drawable/card_rounded"
+        android:backgroundTint="#2B2930"
+        android:text="I’m Safe (Cancel Alert)"
+        android:textColor="#E6E0E9"
         android:textSize="15sp"
-        android:textStyle="bold"/>
+        android:textStyle="bold"
+        android:textAllCaps="false"
+        android:layout_marginBottom="12dp"/>
+
+    <Button
+        android:id="@+id/btnSendSOSNow"
+        android:layout_width="match_parent"
+        android:layout_height="54dp"
+        android:background="@drawable/sos_button"
+        android:text="🚨  Send SOS Now"
+        android:textColor="#FFFFFF"
+        android:textSize="16sp"
+        android:textStyle="bold"
+        android:textAllCaps="false"/>
 
 </LinearLayout>

@@ -1,8 +1,12 @@
 package com.example.women_safety_ml;
 
+import android.app.KeyguardManager;
+import android.content.Context;
 import android.content.Intent;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.CountDownTimer;
+import android.view.WindowManager;
 import android.widget.Button;
 import android.widget.ProgressBar;
 import android.widget.TextView;
@@ -10,9 +14,14 @@ import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
 
+import java.util.HashMap;
+import java.util.Locale;
+import java.util.Map;
+
 public class SOSAlertActivity extends AppCompatActivity {
 
-    private static final long COUNTDOWN_MS = 10_000; // 10 seconds rapid response prompt
+    // Step 6: 10-second rapid response countdown gives user time to cancel or immediately dispatch SOS
+    private static final long COUNTDOWN_MS = 10_000; // 10 seconds
     private static final long INTERVAL_MS  = 1000;
 
     public static final String EXTRA_RISK    = "risk";
@@ -34,6 +43,20 @@ public class SOSAlertActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         if (getSupportActionBar() != null) getSupportActionBar().hide();
+
+        // Ensure activity displays over lock screen and turns display on
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
+            setShowWhenLocked(true);
+            setTurnScreenOn(true);
+            KeyguardManager km = (KeyguardManager) getSystemService(Context.KEYGUARD_SERVICE);
+            if (km != null) km.requestDismissKeyguard(this, null);
+        } else {
+            getWindow().addFlags(WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED
+                    | WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD
+                    | WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON
+                    | WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        }
+
         setContentView(R.layout.activity_sos_alert);
 
         // Get data from intent
@@ -57,34 +80,37 @@ public class SOSAlertActivity extends AppCompatActivity {
         btnSafe     = findViewById(R.id.btnImSafe);
         btnSOSNow   = findViewById(R.id.btnSendSOSNow);
 
-        tvRisk.setText(String.format("Risk Level: %.1f%%", risk));
-        tvSummary.setText(summary != null ? summary : "Potential threat detected. Are you safe?");
+        double displayRisk = (risk <= 1.0) ? (risk * 100) : risk;
+        tvRisk.setText(String.format(Locale.US, "High Risk: %.1f%% Threat Confidence", displayRisk));
+        tvSummary.setText(summary != null && !summary.isEmpty() ? summary : "Potential threat detected. Are you safe?");
         progressBar.setMax((int)(COUNTDOWN_MS / INTERVAL_MS));
         progressBar.setProgress((int)(COUNTDOWN_MS / INTERVAL_MS));
 
-        // I'm Safe button - cancels and logs false alarm for ML feedback
+        // Step 6: "I'm Safe" option - cancels countdown & logs false alarm for ML review (Step 8)
         btnSafe.setOnClickListener(v -> {
             cancelCountdown();
-            logFalseAlarmFeedback();
-            Toast.makeText(this, "Glad you are safe! False alarm logged. ✅", Toast.LENGTH_SHORT).show();
+            logIncidentHistory("FALSE_ALARM_CANCELLED", "USER_MARKED_SAFE");
+            Toast.makeText(this, "Glad you are safe! Cancelled alarm logged for review. ✅", Toast.LENGTH_SHORT).show();
             finish();
         });
 
-        // Send SOS Now button
+        // Step 6: "Send SOS" option - immediately dispatches emergency alert without waiting
         btnSOSNow.setOnClickListener(v -> {
             cancelCountdown();
             sendSOS();
         });
     }
 
-    private void logFalseAlarmFeedback() {
+    // Step 8: Log incident status & history (Confirmed SOS or Cancelled False Alarm) in Firestore
+    private void logIncidentHistory(String eventType, String status) {
         com.google.firebase.auth.FirebaseAuth auth = com.google.firebase.auth.FirebaseAuth.getInstance();
         if (auth.getCurrentUser() == null) return;
 
-        java.util.Map<String, Object> log = new java.util.HashMap<>();
-        log.put("feedback", "user_marked_safe");
-        log.put("originalRisk", risk);
-        log.put("summary", summary);
+        Map<String, Object> log = new HashMap<>();
+        log.put("eventType", eventType);
+        log.put("status", status);
+        log.put("riskLevel", risk);
+        log.put("summary", summary != null ? summary : "");
         log.put("timestamp", System.currentTimeMillis());
         log.put("latitude", lat);
         log.put("longitude", lng);
@@ -92,7 +118,7 @@ public class SOSAlertActivity extends AppCompatActivity {
         com.google.firebase.firestore.FirebaseFirestore.getInstance()
                 .collection("users")
                 .document(auth.getCurrentUser().getUid())
-                .collection("feedback_logs")
+                .collection("incident_history")
                 .add(log);
     }
 
@@ -100,10 +126,10 @@ public class SOSAlertActivity extends AppCompatActivity {
         countDownTimer = new CountDownTimer(COUNTDOWN_MS, INTERVAL_MS) {
             @Override
             public void onTick(long millisLeft) {
-                long secs = millisLeft / 1000;
-                tvCountdown.setText(String.format("Auto SOS in: %02ds (Tap 'I'm Safe' to cancel)", secs));
+                long secs = (millisLeft + 999) / 1000;
+                tvCountdown.setText(String.format(Locale.US, "Auto SOS in: %02ds (Tap 'I’m Safe' to cancel)", secs));
                 progressBar.setProgress((int)(millisLeft / INTERVAL_MS));
-                tvCountdown.setTextColor(secs <= 5 ? 0xFFE53935 : 0xFFFF9800);
+                tvCountdown.setTextColor(secs <= 5 ? 0xFFFF5449 : 0xFFFFB787);
             }
 
             @Override
@@ -117,9 +143,12 @@ public class SOSAlertActivity extends AppCompatActivity {
     private void sendSOS() {
         btnSafe.setEnabled(false);
         btnSOSNow.setEnabled(false);
-        tvCountdown.setText("Dispatching SOS & Capturing Evidence...");
+        tvCountdown.setText("Dispatching SOS & Live Location...");
 
-        // Objective 5: Record 15-second acoustic evidence clip locally & log to Firestore
+        // Step 8: Log confirmed SOS in incident history
+        logIncidentHistory("CONFIRMED_SOS", "DISPATCHED");
+
+        // Objective 5: Record acoustic evidence clip locally
         audioEvidenceRecorder.startRecordingEvidence(lat, lng, new AudioEvidenceRecorder.OnEvidenceRecordedListener() {
             @Override
             public void onEvidenceReady(java.io.File evidenceFile) {
@@ -132,12 +161,13 @@ public class SOSAlertActivity extends AppCompatActivity {
             }
         });
 
+        // Step 7: SOS & Emergency Response: SMS with live GPS link to trusted contacts
         sosManager.sendSOSToAllContacts(lat, lng, new SOSManager.SOSCallback() {
             @Override
             public void onSMSSent(int count) {
                 runOnUiThread(() -> {
                     Toast.makeText(SOSAlertActivity.this,
-                            "🚨 SOS sent to " + count + " emergency contacts! Evidence recording active.", Toast.LENGTH_LONG).show();
+                            "🚨 SOS sent to " + count + " emergency contacts! Live tracking active.", Toast.LENGTH_LONG).show();
                     finish();
                 });
             }
@@ -165,7 +195,7 @@ public class SOSAlertActivity extends AppCompatActivity {
 
     @Override
     public void onBackPressed() {
-        // Prevent back button — user must respond
+        // Prevent back button — user must respond with "I'm Safe" or "Send SOS"
         Toast.makeText(this, "Please respond to the alert!", Toast.LENGTH_SHORT).show();
     }
 }

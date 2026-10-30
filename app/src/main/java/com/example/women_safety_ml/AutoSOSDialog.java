@@ -10,9 +10,12 @@ import android.widget.TextView;
 
 import androidx.appcompat.app.AlertDialog;
 
+import java.util.Locale;
+
 public class AutoSOSDialog {
 
-    private static final long COUNTDOWN_MS = 1 * 60 * 1000; // 3 minutes
+    // Step 6: 10-second countdown gives user time to cancel or immediately dispatch SOS
+    private static final long COUNTDOWN_MS = 10 * 1000; // 10 seconds
     private static final long INTERVAL_MS  = 1000;
 
     public interface AutoSOSListener {
@@ -21,7 +24,7 @@ public class AutoSOSDialog {
         void onUserTriggerSOS();
     }
 
-    private final Activity activity;  // ← Use Activity not Context
+    private final Activity activity;  // Use Activity not Context
     private final AutoSOSListener listener;
     private final double risk;
     private final String summary;
@@ -51,8 +54,9 @@ public class AutoSOSDialog {
         Button btnSafe        = view.findViewById(R.id.btnImSafe);
         Button btnSOS         = view.findViewById(R.id.btnSendSOSNow);
 
-        tvRisk.setText("Risk Level: " + risk + "%");
-        tvSummary.setText(summary.isEmpty() ? "Stay alert!" : summary);
+        double displayRisk = (risk <= 1.0) ? (risk * 100) : risk;
+        tvRisk.setText(String.format(Locale.US, "High Risk: %.0f%% Threat Confidence", displayRisk));
+        tvSummary.setText(summary.isEmpty() ? "Unusual motion/audio risk detected" : summary);
         progress.setMax((int)(COUNTDOWN_MS / INTERVAL_MS));
         progress.setProgress((int)(COUNTDOWN_MS / INTERVAL_MS));
 
@@ -90,19 +94,16 @@ public class AutoSOSDialog {
                     cancel();
                     return;
                 }
-                long secs    = millisLeft / 1000;
-                long minutes = secs / 60;
-                long seconds = secs % 60;
+                long secs = (millisLeft + 999) / 1000;
 
-                tvCountdown.setText(String.format(
-                        "Auto SOS in: %02d:%02d", minutes, seconds));
+                tvCountdown.setText(String.format(Locale.US, "Auto SOS in: %02ds", secs));
                 progress.setProgress((int)(millisLeft / INTERVAL_MS));
-                tvCountdown.setTextColor(secs <= 30 ? 0xFFE53935 : 0xFFFF9800);
+                tvCountdown.setTextColor(secs <= 5 ? 0xFFE53935 : 0xFFFF9800);
             }
 
             @Override
             public void onFinish() {
-                tvCountdown.setText("Sending SOS...");
+                tvCountdown.setText("Sending SOS Now...");
                 if (dialog != null && dialog.isShowing()) dialog.dismiss();
                 if (listener != null) listener.onAutoSOSTriggered();
             }

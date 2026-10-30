@@ -66,9 +66,8 @@ public class MainActivity extends BaseActivity {
     private Location currentLocation = null;
     private double currentLat = 0, currentLng = 0;
 
-    // Sensors & Voice Detector
+    // Sensors
     private SensorDataCollector sensorCollector;
-    private EmergencyVoiceDetector voiceDetector;
 
     // Tracking
     private boolean isTracking = false;
@@ -133,11 +132,7 @@ public class MainActivity extends BaseActivity {
         // Avoid microphone collision: disable MediaRecorder while Voice Safety is active
         sensorCollector.setAudioMeterEnabled(false);
 
-        if (voiceDetector == null) {
-            voiceDetector = new EmergencyVoiceDetector(this);
-        }
-
-        voiceDetector.setOnVoiceDistressListener(new EmergencyVoiceDetector.OnVoiceDistressListener() {
+        VoiceGuardManager.getInstance(this).setExternalListener(new EmergencyVoiceDetector.OnVoiceDistressListener() {
             @Override
             public void onDistressWordDetected(String keyword, int currentCount, int requiredCount) {
                 runOnUiThread(() -> {
@@ -198,9 +193,6 @@ public class MainActivity extends BaseActivity {
     protected void onPause() {
         super.onPause();
         sensorCollector.stop();
-        if (voiceDetector != null) {
-            voiceDetector.stopListening();
-        }
         voiceResetHandler.removeCallbacksAndMessages(null);
         mlHandler.removeCallbacks(mlRunnable);
         Log.d(TAG, "MainActivity paused — SafetyForegroundService continues 24/7 background protection");
@@ -388,10 +380,10 @@ public class MainActivity extends BaseActivity {
         setupVoiceKeywordDetector();
 
         sensorCollector.start();
-        if (isVoiceEnabled && voiceDetector != null) {
-            voiceDetector.startListening();
-        } else if (voiceDetector != null) {
-            voiceDetector.stopListening();
+        if (isVoiceEnabled) {
+            VoiceGuardManager.getInstance(this).startListening();
+        } else {
+            VoiceGuardManager.getInstance(this).stopListening();
         }
 
         // Reset SOS flag — ready for next detection
