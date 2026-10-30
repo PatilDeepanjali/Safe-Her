@@ -51,17 +51,17 @@ public class VoiceGuardManager {
 
             @Override
             public void onEmergencyConfirmed(String keyword, int totalCount) {
-                Log.e(TAG, "🚨 EMERGENCY CONFIRMED via Voice: " + keyword + " repeated " + totalCount + " times!");
+                Log.e(TAG, "🚨 EMERGENCY CONFIRMED via Voice: " + keyword);
                 if (externalListener != null) {
                     externalListener.onEmergencyConfirmed(keyword, totalCount);
+                } else {
+                    // Trigger SOSAlertActivity from any screen
+                    Intent alertIntent = new Intent(context, SOSAlertActivity.class);
+                    alertIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+                    alertIntent.putExtra(SOSAlertActivity.EXTRA_RISK, 98.0);
+                    alertIntent.putExtra(SOSAlertActivity.EXTRA_SUMMARY, "🚨 Voice SOS Confirmed: Distress keyword '" + keyword.toUpperCase() + "' detected");
+                    context.startActivity(alertIntent);
                 }
-
-                // Trigger SOSAlertActivity from any screen
-                Intent alertIntent = new Intent(context, SOSAlertActivity.class);
-                alertIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
-                alertIntent.putExtra(SOSAlertActivity.EXTRA_RISK, 98.0);
-                alertIntent.putExtra(SOSAlertActivity.EXTRA_SUMMARY, "🚨 Voice SOS Confirmed: Spoke '" + keyword.toUpperCase() + "' " + totalCount + " times");
-                context.startActivity(alertIntent);
             }
 
             @Override

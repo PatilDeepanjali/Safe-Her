@@ -7,9 +7,11 @@ import android.content.pm.PackageManager;
 import android.location.Address;
 import android.location.Geocoder;
 import android.os.Bundle;
+import android.os.Handler;
 import android.os.Looper;
 import android.text.Editable;
 import android.text.TextWatcher;
+import android.view.KeyEvent;
 import android.view.View;
 import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputMethodManager;
@@ -68,8 +70,14 @@ public class MapActivity extends BaseActivity implements OnMapReadyCallback {
     private TextView tvHeaderTitle, badgeActiveJourney;
     private View btnTopSOS;
     private EditText etOrigin, etDestination;
-    private ImageView btnResetOriginGps, btnClearDestination, btnSearchDestination;
+    private ImageView btnResetOriginGps, btnClearDestination;
+    private View btnSearchDestination;
+    private View cardQuickSearchBanner;
+    private TextView tvQuickSearchTarget;
     private View btnSwapEndpoints;
+
+    private final Handler searchDebounceHandler = new Handler(Looper.getMainLooper());
+    private Runnable searchDebounceRunnable;
 
     // Quick Chips
     private TextView chipHome, chipWork, chipCafe, chipChooseMap;
@@ -163,6 +171,8 @@ public class MapActivity extends BaseActivity implements OnMapReadyCallback {
         btnClearDestination  = findViewById(R.id.btnClearDestination);
         btnSearchDestination = findViewById(R.id.btnSearchDestination);
         btnSwapEndpoints     = findViewById(R.id.btnSwapEndpoints);
+        cardQuickSearchBanner = findViewById(R.id.cardQuickSearchBanner);
+        tvQuickSearchTarget  = findViewById(R.id.tvQuickSearchTarget);
 
         // Chips
         chipHome             = findViewById(R.id.chipHome);
@@ -425,6 +435,8 @@ public class MapActivity extends BaseActivity implements OnMapReadyCallback {
         isRouteComputed = true;
         isJourneyActive = false;
 
+        hideKeyboard();
+
         if (layoutDestinationPrompt != null) layoutDestinationPrompt.setVisibility(View.GONE);
         if (layoutRouteOptions != null) layoutRouteOptions.setVisibility(View.VISIBLE);
         if (layoutActiveJourney != null) layoutActiveJourney.setVisibility(View.GONE);
@@ -434,7 +446,7 @@ public class MapActivity extends BaseActivity implements OnMapReadyCallback {
         if (tvHeaderTitle != null) tvHeaderTitle.setText("Safe Route Recommendation");
 
         if (bottomSheetBehavior != null) {
-            bottomSheetBehavior.setPeekHeight(dpToPx(265));
+            bottomSheetBehavior.setPeekHeight(dpToPx(340));
             bottomSheetBehavior.setState(BottomSheetBehavior.STATE_COLLAPSED);
         }
     }
@@ -492,20 +504,49 @@ public class MapActivity extends BaseActivity implements OnMapReadyCallback {
         // Clear Destination
         if (btnClearDestination != null) {
             btnClearDestination.setOnClickListener(v -> {
+                if (searchDebounceRunnable != null) {
+                    searchDebounceHandler.removeCallbacks(searchDebounceRunnable);
+                }
                 if (etDestination != null) etDestination.setText("");
+                if (cardQuickSearchBanner != null) cardQuickSearchBanner.setVisibility(View.GONE);
                 showPromptState();
             });
         }
 
-        // Destination TextWatcher for X clear button visibility
+        // Destination TextWatcher for live search card, clear button & debounced auto-routing
         if (etDestination != null) {
             etDestination.addTextChangedListener(new TextWatcher() {
                 @Override
                 public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
                 @Override
                 public void onTextChanged(CharSequence s, int start, int before, int count) {
+                    String query = s != null ? s.toString().trim() : "";
                     if (btnClearDestination != null) {
-                        btnClearDestination.setVisibility(s.length() > 0 ? View.VISIBLE : View.GONE);
+                        btnClearDestination.setVisibility(query.length() > 0 ? View.VISIBLE : View.GONE);
+                    }
+
+                    if (cardQuickSearchBanner != null && tvQuickSearchTarget != null) {
+                        if (query.length() >= 2 && !isJourneyActive) {
+                            cardQuickSearchBanner.setVisibility(View.VISIBLE);
+                            tvQuickSearchTarget.setText("Safe Routes to \"" + query + "\"");
+                        } else {
+                            cardQuickSearchBanner.setVisibility(View.GONE);
+                        }
+                    }
+
+                    // Cancel previous pending auto-search
+                    if (searchDebounceRunnable != null) {
+                        searchDebounceHandler.removeCallbacks(searchDebounceRunnable);
+                    }
+
+                    // Auto-trigger route calculation if user typed 3+ chars and stopped for 750ms
+                    if (query.length() >= 3 && !isJourneyActive) {
+                        searchDebounceRunnable = () -> {
+                            if (!isFinishing() && !isDestroyed()) {
+                                executeRoutingRequest();
+                            }
+                        };
+                        searchDebounceHandler.postDelayed(searchDebounceRunnable, 750);
                     }
                 }
                 @Override
@@ -513,7 +554,16 @@ public class MapActivity extends BaseActivity implements OnMapReadyCallback {
             });
 
             etDestination.setOnEditorActionListener((v, actionId, event) -> {
-                if (actionId == EditorInfo.IME_ACTION_SEARCH || actionId == EditorInfo.IME_ACTION_DONE) {
+                boolean isEnter = (event != null && event.getKeyCode() == KeyEvent.KEYCODE_ENTER && event.getAction() == KeyEvent.ACTION_DOWN);
+                if (actionId == EditorInfo.IME_ACTION_SEARCH ||
+                    actionId == EditorInfo.IME_ACTION_GO ||
+                    actionId == EditorInfo.IME_ACTION_DONE ||
+                    actionId == EditorInfo.IME_ACTION_SEND ||
+                    actionId == EditorInfo.IME_NULL ||
+                    isEnter) {
+                    if (searchDebounceRunnable != null) {
+                        searchDebounceHandler.removeCallbacks(searchDebounceRunnable);
+                    }
                     hideKeyboard();
                     executeRoutingRequest();
                     return true;
@@ -522,8 +572,21 @@ public class MapActivity extends BaseActivity implements OnMapReadyCallback {
             });
         }
 
+        if (cardQuickSearchBanner != null) {
+            cardQuickSearchBanner.setOnClickListener(v -> {
+                if (searchDebounceRunnable != null) {
+                    searchDebounceHandler.removeCallbacks(searchDebounceRunnable);
+                }
+                hideKeyboard();
+                executeRoutingRequest();
+            });
+        }
+
         if (btnSearchDestination != null) {
             btnSearchDestination.setOnClickListener(v -> {
+                if (searchDebounceRunnable != null) {
+                    searchDebounceHandler.removeCallbacks(searchDebounceRunnable);
+                }
                 hideKeyboard();
                 executeRoutingRequest();
             });
@@ -662,6 +725,9 @@ public class MapActivity extends BaseActivity implements OnMapReadyCallback {
     }
 
     private void executeRoutingRequest() {
+        if (searchDebounceRunnable != null) {
+            searchDebounceHandler.removeCallbacks(searchDebounceRunnable);
+        }
         String destQuery = etDestination != null ? etDestination.getText().toString().trim() : "";
         if (destQuery.isEmpty()) {
             Toast.makeText(this, "Please enter a destination or tap on map", Toast.LENGTH_SHORT).show();
@@ -670,31 +736,71 @@ public class MapActivity extends BaseActivity implements OnMapReadyCallback {
 
         activeDestinationName = destQuery;
         if (currentLat == 0) {
-            currentLat = 12.9754;
-            currentLng = 77.6067;
+            currentLat = 20.8931; // Default to Babhulwadi/Dhule region if GPS not yet resolved
+            currentLng = 74.7620;
         }
         if (activeOriginLatLng == null) {
             activeOriginLatLng = new LatLng(currentLat, currentLng);
         }
 
-        Toast.makeText(this, "Searching safe routes to: " + destQuery + "...", Toast.LENGTH_SHORT).show();
+        Toast.makeText(this, "Searching safe corridors to: " + destQuery + "...", Toast.LENGTH_SHORT).show();
 
         // Background Geocoding
         new Thread(() -> {
-            try {
-                Geocoder geocoder = new Geocoder(MapActivity.this, Locale.getDefault());
-                List<Address> addresses = geocoder.getFromLocationName(destQuery, 1);
-                if (addresses != null && !addresses.isEmpty()) {
-                    Address addr = addresses.get(0);
-                    activeDestinationLatLng = new LatLng(addr.getLatitude(), addr.getLongitude());
-                } else {
-                    activeDestinationLatLng = new LatLng(currentLat + 0.0090, currentLng + 0.0085);
-                }
-            } catch (Exception e) {
-                activeDestinationLatLng = new LatLng(currentLat + 0.0090, currentLng + 0.0085);
+            LatLng targetCoord = null;
+            String lower = destQuery.toLowerCase(Locale.ROOT).trim();
+
+            // 1. Instant offline resolution for local cities/landmarks
+            if (lower.contains("dhule")) {
+                targetCoord = new LatLng(20.9042, 74.7749);
+            } else if (lower.contains("babhulwadi")) {
+                targetCoord = new LatLng(20.8931, 74.7620);
+            } else if (lower.contains("nashik") || lower.contains("nasik")) {
+                targetCoord = new LatLng(19.9975, 73.7898);
+            } else if (lower.contains("pune")) {
+                targetCoord = new LatLng(18.5204, 73.8567);
+            } else if (lower.contains("mumbai")) {
+                targetCoord = new LatLng(19.0760, 72.8777);
+            } else if (lower.contains("jalgaon")) {
+                targetCoord = new LatLng(21.0077, 75.5626);
+            } else if (lower.contains("malegaon")) {
+                targetCoord = new LatLng(20.5579, 74.5287);
+            } else if (lower.contains("chalisgaon")) {
+                targetCoord = new LatLng(20.4633, 75.0136);
+            } else if (lower.contains("aurangabad") || lower.contains("sambhajinagar")) {
+                targetCoord = new LatLng(19.8762, 75.3433);
+            } else if (lower.contains("indiranagar") || lower.contains("bangalore") || lower.contains("bengaluru")) {
+                targetCoord = new LatLng(12.9784, 77.6408);
+            } else if (lower.contains("delhi")) {
+                targetCoord = new LatLng(28.6139, 77.2090);
             }
 
-            runOnUiThread(() -> calculateRoutesBetweenPoints(activeOriginLatLng, activeDestinationLatLng));
+            // 2. Android Geocoder fallback
+            if (targetCoord == null) {
+                try {
+                    Geocoder geocoder = new Geocoder(MapActivity.this, Locale.getDefault());
+                    List<Address> addresses = geocoder.getFromLocationName(destQuery, 1);
+                    if ((addresses == null || addresses.isEmpty()) && !lower.contains("india")) {
+                        addresses = geocoder.getFromLocationName(destQuery + ", Maharashtra, India", 1);
+                    }
+                    if (addresses != null && !addresses.isEmpty()) {
+                        Address addr = addresses.get(0);
+                        targetCoord = new LatLng(addr.getLatitude(), addr.getLongitude());
+                    }
+                } catch (Exception ignored) {}
+            }
+
+            // 3. Fallback offset if Geocoder is offline or has no match
+            if (targetCoord == null) {
+                targetCoord = new LatLng(currentLat + 0.0125, currentLng + 0.0110);
+            }
+
+            activeDestinationLatLng = targetCoord;
+
+            runOnUiThread(() -> {
+                hideKeyboard();
+                calculateRoutesBetweenPoints(activeOriginLatLng, activeDestinationLatLng);
+            });
         }).start();
     }
 
@@ -762,14 +868,20 @@ public class MapActivity extends BaseActivity implements OnMapReadyCallback {
         double perpLat = -dLngDiff / (mag == 0 ? 1 : mag);
         double perpLng = dLatDiff / (mag == 0 ? 1 : mag);
 
+        // Dynamically scale corridor curve offsets based on distance
+        double offsetSafe = Math.min(0.025, Math.max(0.0035, mag * 0.12));
+        double offsetBal = -offsetSafe * 0.70;
+
+        // Speed model: Vehicle (>3km) vs pedestrian (<=3km)
+        double speed = directKm > 3.0 ? 30.0 : 4.5;
+
         // ── ROUTE 0: Safest Corridor (Curve via Safe boulevard + Police + 24/7 Pharmacy) ──
-        double offsetSafe = 0.0022;
         LatLng p1Safe = new LatLng(sLat + dLatDiff * 0.25 + perpLat * offsetSafe, sLng + dLngDiff * 0.25 + perpLng * offsetSafe);
         LatLng policePost = new LatLng(sLat + dLatDiff * 0.55 + perpLat * (offsetSafe * 1.3), sLng + dLngDiff * 0.55 + perpLng * (offsetSafe * 1.3));
         LatLng pharmacy = new LatLng(sLat + dLatDiff * 0.82 + perpLat * (offsetSafe * 0.6), sLng + dLngDiff * 0.82 + perpLng * (offsetSafe * 0.6));
 
         routeDistances[0] = Math.round((directKm * 1.25) * 10.0) / 10.0;
-        routeDurations[0] = Math.max(3, (int) Math.round((routeDistances[0] / 4.5) * 60));
+        routeDurations[0] = Math.max(2, (int) Math.round((routeDistances[0] / speed) * 60));
 
         PolylineOptions safePath = new PolylineOptions()
                 .add(origin)
@@ -784,12 +896,11 @@ public class MapActivity extends BaseActivity implements OnMapReadyCallback {
         routePolylines.add(mMap.addPolyline(safePath));
 
         // ── ROUTE 1: Balanced Commercial Corridor ──
-        double offsetBal = -0.0014;
         LatLng p1Bal = new LatLng(sLat + dLatDiff * 0.35 + perpLat * offsetBal, sLng + dLngDiff * 0.35 + perpLng * offsetBal);
         LatLng p2Bal = new LatLng(sLat + dLatDiff * 0.70 + perpLat * (offsetBal * 0.8), sLng + dLngDiff * 0.70 + perpLng * (offsetBal * 0.8));
 
         routeDistances[1] = Math.round((directKm * 1.12) * 10.0) / 10.0;
-        routeDurations[1] = Math.max(2, (int) Math.round((routeDistances[1] / 4.5) * 60));
+        routeDurations[1] = Math.max(2, (int) Math.round((routeDistances[1] / speed) * 60));
 
         PolylineOptions balancedPath = new PolylineOptions()
                 .add(origin)
@@ -806,7 +917,7 @@ public class MapActivity extends BaseActivity implements OnMapReadyCallback {
         LatLng dangerCenter = new LatLng(sLat + dLatDiff * 0.50, sLng + dLngDiff * 0.50);
 
         routeDistances[2] = Math.round((directKm * 1.0) * 10.0) / 10.0;
-        routeDurations[2] = Math.max(2, (int) Math.round((routeDistances[2] / 4.5) * 60));
+        routeDurations[2] = Math.max(2, (int) Math.round((routeDistances[2] / speed) * 60));
 
         PolylineOptions fastPath = new PolylineOptions()
                 .add(origin)
@@ -873,11 +984,11 @@ public class MapActivity extends BaseActivity implements OnMapReadyCallback {
             LatLngBounds.Builder builder = new LatLngBounds.Builder();
             builder.include(origin);
             builder.include(destination);
-            builder.include(policePost);
+            builder.include(p1Safe);
             builder.include(dangerCenter);
-            mMap.animateCamera(CameraUpdateFactory.newLatLngBounds(builder.build(), 120));
+            mMap.animateCamera(CameraUpdateFactory.newLatLngBounds(builder.build(), dpToPx(70)));
         } catch (Exception ignored) {
-            mMap.animateCamera(CameraUpdateFactory.newLatLngZoom(origin, 15));
+            mMap.animateCamera(CameraUpdateFactory.newLatLngZoom(origin, 14));
         }
 
         // Transition from Prompt State to Route Recommendation State!
@@ -1054,6 +1165,9 @@ public class MapActivity extends BaseActivity implements OnMapReadyCallback {
     @Override
     protected void onDestroy() {
         super.onDestroy();
+        if (searchDebounceHandler != null) {
+            searchDebounceHandler.removeCallbacksAndMessages(null);
+        }
         if (liveTracker != null) liveTracker.stopTracking();
     }
 

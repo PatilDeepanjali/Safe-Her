@@ -80,6 +80,7 @@ public class AutoSOSDialog {
         // Show safely
         try {
             dialog.show();
+            EmergencyAlarmPlayer.getInstance(activity).startAlarm();
             startCountdown(tvCountdown, progress);
         } catch (Exception e) {
             e.printStackTrace();
@@ -111,6 +112,7 @@ public class AutoSOSDialog {
     }
 
     public void cancelCountdown() {
+        EmergencyAlarmPlayer.getInstance(activity).stopAlarm();
         if (countDownTimer != null) countDownTimer.cancel();
     }
 

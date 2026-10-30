@@ -70,6 +70,8 @@ public class SOSAlertActivity extends AppCompatActivity {
 
         initViews();
         startCountdown();
+        // Trigger loud emergency "bippp" siren and pulsing alarm
+        EmergencyAlarmPlayer.getInstance(this).startAlarm();
     }
 
     private void initViews() {
@@ -88,6 +90,7 @@ public class SOSAlertActivity extends AppCompatActivity {
 
         // Step 6: "I'm Safe" option - cancels countdown & logs false alarm for ML review (Step 8)
         btnSafe.setOnClickListener(v -> {
+            EmergencyAlarmPlayer.getInstance(this).stopAlarm();
             cancelCountdown();
             logIncidentHistory("FALSE_ALARM_CANCELLED", "USER_MARKED_SAFE");
             Toast.makeText(this, "Glad you are safe! Cancelled alarm logged for review. ✅", Toast.LENGTH_SHORT).show();
@@ -190,6 +193,7 @@ public class SOSAlertActivity extends AppCompatActivity {
     @Override
     protected void onDestroy() {
         super.onDestroy();
+        EmergencyAlarmPlayer.getInstance(this).stopAlarm();
         cancelCountdown();
     }
 
